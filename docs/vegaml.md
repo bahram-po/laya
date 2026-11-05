@@ -7,6 +7,8 @@ is `laya.VegaAgent`, in `laya/vega.py`.
 
 ```bash
 pip install -U laya               # vegaml ships with laya 0.4.23 and newer
+pip install 'laya[vision]'        # images and video: Pillow and torchvision
+pip install 'laya[audio]'         # audio files: soundfile; a numpy waveform needs nothing
 ```
 
 ```python
@@ -121,6 +123,12 @@ saw cannot be audited. `predict_image_text` answers the same questions with the 
 which measures what the picture itself contributed.
 
 ## Model switching
+
+Since 0.4.25 the ordinary `laya.Router()` does this by itself when vegaml is installed: images,
+speech, video, states past 8,192 tokens and questions with fitted heads go to vega, everything else
+to the encoders, with `Router(vega=False)` to turn it off. See
+[the vega lane](routing.md#the-vega-lane). `laya.vega.Router` below is the explicit two-model form.
+
 
 ```python
 from laya.vega import Router
