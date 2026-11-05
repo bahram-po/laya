@@ -1,0 +1,72 @@
+name: CPU head evidence (fork only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact source commit to benchmark
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    if: github.repository == 'bahram-po/laya'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        checkpoint: [english, multilingual, typed-decisions]
+    env:
+      USE_TF: '0'
+      USE_TORCH: '1'
+      TOKENIZERS_PARALLELISM: 'false'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install the same core dependencies as upstream CI
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e .
+      - name: Record source and hardware
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/source.txt
+          lscpu > evidence/cpu.txt
+          python -m pip freeze > evidence/packages.txt
+      - name: Download the pinned public checkpoint
+        env:
+          CHECKPOINT_NAME: ${{ matrix.checkpoint }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from verify.checkpoints import fetch_entry, sha256
+          manifest = json.loads(Path('verify/checkpoints.json').read_text())
+          entry = next(e for e in manifest['checkpoints'] if e['name'] == os.environ['CHECKPOINT_NAME'])
+          fetch_entry(entry, manifest['revision'], 'models')
+          assert sha256(Path('models') / entry['path']) == entry['sha256']
+          PY
+      - name: Parity and paired public API latency
+        run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --json evidence/latency.json
+      - name: Baseline peak RSS (fresh process)
+        run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --memory baseline --json evidence/memory-baseline.json
+      - name: Selected-head peak RSS (fresh process)
+        run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --memory selected --json evidence/memory-selected.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: cpu-head-${{ matrix.checkpoint }}
+          path: evidence/
+          retention-days: 30
