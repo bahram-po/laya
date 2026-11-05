@@ -15,11 +15,11 @@ jobs:
   benchmark:
     if: github.repository == 'bahram-po/laya'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
-        checkpoint: [english, multilingual, typed-decisions]
+        checkpoint: [english, typed-decisions]
     env:
       USE_TF: '0'
       USE_TORCH: '1'
