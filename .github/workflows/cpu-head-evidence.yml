@@ -12,6 +12,11 @@ on:
         type: choice
         default: both
         options: [both, english, typed-decisions]
+      phase:
+        description: Measurements to run
+        type: choice
+        default: full
+        options: [full, memory]
 
 permissions:
   contents: read
@@ -64,6 +69,7 @@ jobs:
           assert sha256(Path('models') / entry['path']) == entry['sha256']
           PY
       - name: Parity and paired public API latency
+        if: inputs.phase != 'memory'
         run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --json evidence/latency.json
       - name: Baseline peak RSS (fresh process)
         run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --memory baseline --json evidence/memory-baseline.json
