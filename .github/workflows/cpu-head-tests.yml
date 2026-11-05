@@ -1,4 +1,4 @@
-name: CPU head compatibility (fork only)
+name: Combined CPU compatibility (fork only)
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.10', '3.11', '3.12']
+        python: ['3.10', '3.11', '3.12', '3.13']
     env:
       USE_TF: '0'
       USE_TORCH: '1'

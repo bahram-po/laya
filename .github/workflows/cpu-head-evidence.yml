@@ -1,4 +1,4 @@
-name: CPU head evidence (fork only)
+name: Combined CPU evidence (fork only)
 
 on:
   workflow_dispatch:
@@ -10,8 +10,8 @@ on:
       checkpoint:
         description: Checkpoint jobs to run
         type: choice
-        default: both
-        options: [both, english, typed-decisions]
+        default: all
+        options: [all, english, multilingual, typed-decisions]
       phase:
         description: Measurements to run
         type: choice
@@ -29,13 +29,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        checkpoint: ${{ fromJSON(inputs.checkpoint == 'english' && '["english"]' || inputs.checkpoint == 'typed-decisions' && '["typed-decisions"]' || '["english","typed-decisions"]') }}
+        checkpoint: ${{ fromJSON(inputs.checkpoint == 'english' && '["english"]' || inputs.checkpoint == 'multilingual' && '["multilingual"]' || inputs.checkpoint == 'typed-decisions' && '["typed-decisions"]' || '["english","multilingual","typed-decisions"]') }}
     env:
       USE_TF: '0'
       USE_TORCH: '1'
       TOKENIZERS_PARALLELISM: 'false'
       OMP_NUM_THREADS: '2'
       MKL_NUM_THREADS: '2'
+      FOCUSED_CASES: '--case triage/0 --case long/512 --case long/1024 --case long/2048 --case long/4096 --case options/1 --case options/32 --case batch/padded --case structured/mixed --case structured/batch'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -68,16 +69,19 @@ jobs:
           fetch_entry(entry, manifest['revision'], 'models')
           assert sha256(Path('models') / entry['path']) == entry['sha256']
           PY
-      - name: Parity and paired public API latency
+      - name: Focused parity and paired public API latency
         if: inputs.phase != 'memory'
-        run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --json evidence/latency.json
+        run: python benchmarks/bench_cpu.py --checkpoint ${{ matrix.checkpoint }} --threads 2 $FOCUSED_CASES --json evidence/latency.json
+      - name: Separate 33-option long-input suite
+        if: inputs.phase != 'memory'
+        run: python benchmarks/bench_cpu.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --suite long-options --json evidence/long-options.json
       - name: Baseline peak RSS (fresh process)
-        run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --memory baseline --json evidence/memory-baseline.json
-      - name: Selected-head peak RSS (fresh process)
-        run: python benchmarks/bench_cpu_head.py --checkpoint ${{ matrix.checkpoint }} --threads 2 --memory selected --json evidence/memory-selected.json
+        run: python benchmarks/bench_cpu.py --checkpoint ${{ matrix.checkpoint }} --threads 2 $FOCUSED_CASES --memory baseline --json evidence/memory-baseline.json
+      - name: Combined peak RSS (fresh process)
+        run: python benchmarks/bench_cpu.py --checkpoint ${{ matrix.checkpoint }} --threads 2 $FOCUSED_CASES --memory selected --json evidence/memory-selected.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: cpu-head-${{ matrix.checkpoint }}
+          name: cpu-combined-${{ matrix.checkpoint }}
           path: evidence/
           retention-days: 30
