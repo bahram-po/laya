@@ -7,6 +7,11 @@ on:
         description: Exact source commit to benchmark
         required: true
         type: string
+      checkpoint:
+        description: Checkpoint jobs to run
+        type: choice
+        default: both
+        options: [both, english, typed-decisions]
 
 permissions:
   contents: read
@@ -19,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        checkpoint: [english, typed-decisions]
+        checkpoint: ${{ fromJSON(inputs.checkpoint == 'english' && '["english"]' || inputs.checkpoint == 'typed-decisions' && '["typed-decisions"]' || '["english","typed-decisions"]') }}
     env:
       USE_TF: '0'
       USE_TORCH: '1'
